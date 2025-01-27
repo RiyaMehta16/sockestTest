@@ -1,4 +1,5 @@
-from flask import Flask, render_template
+
+from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO
 import time
 
@@ -9,20 +10,37 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 def index():
     return render_template('index.html')
 
-def send_data():
-    while True:
-        data = {
-            "message": "Real-time update",
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-        }
-        print("Sending data:", data)
-        socketio.emit('update_data', data)  # Send data to frontend
-        time.sleep(5)  # Send data every 5 seconds
+@app.route('/process', methods=['POST'])
+def process_endpoint():
+    data = request.get_json()
+    endpoint = data.get('endpoint')
+
+    if not endpoint:
+        return jsonify({"error": "No endpoint provided"}), 400
+
+    print(f"Received endpoint request: {endpoint}")
+
+    # Acknowledge the request first
+    socketio.emit('status', {"message": "Server received the request for " + endpoint})
+
+    # Simulating a processing delay with a background task
+    socketio.start_background_task(target=simulate_backend_task, endpoint=endpoint)
+
+    return jsonify({"message": "Request received, processing started!"})
+
+def simulate_backend_task(endpoint):
+    """Simulated long-running task that emits data when done."""
+    time.sleep(5)  # Simulate processing delay
+    
+    # Simulated result
+    result = f"Processed data from {endpoint}"
+    
+    print("Sending result:", result)
+    socketio.emit('update_result', {"message": result})
 
 @socketio.on('connect')
 def handle_connect():
     print('Client connected')
-    socketio.start_background_task(send_data)
 
 @socketio.on('disconnect')
 def handle_disconnect():
